@@ -1,0 +1,163 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(ggplot2)
+library(lattice)
+library(grid)
+library(gridExtra)
+library(cowplot)
+library(dplyr)
+```
+
+1. turn nums count to proportions
+```{r}
+nums = read.csv("./preg_nums.csv")
+nums[-1] <- nums[-1] / rowSums(nums[-1]) # get proportions by the row
+inputcols = length(colnames(nums))
+```
+
+2. grab metadata
+```{r}
+metadata = read.csv("./metadata/samples_3.csv")
+props = merge(nums, metadata[c("orig.ident","donor", "timepoint")], by.x = "X", by.y = "orig.ident", all.X = TRUE, all.y = FALSE)
+levels(props$timepoint) = c("NP", "Pre", "T1", "T2", "T3", "Post")
+extraCols = length(colnames(props)) - inputcols
+```
+
+#single graph test work (IGNORE)
+```{r}
+colnames(props)
+ggplot(props, aes(timepoint, CD8_T, color = NA)) +
+  geom_line(aes(color = donor)) + 
+  geom_smooth(aes(color = donor)) + 
+    geom_jitter() +
+    stat_boxplot(fill = NA) +
+  labs(subtitle = "CD8_T proportions by group")
+
+```
+
+
+3. really cool function to loop through graphs!! YAY 
+```{r}
+cellTypes = colnames(props)
+cellTypesinterested = cellTypes[2:(length(cellTypes) - extraCols)]
+myplots <- vector('list', length(cellTypesinterested))
+t = 1
+for (i in cellTypesinterested) {
+    myplots[[t]] <- local({
+        i <- i
+        p1 <- ggplot(props, aes(timepoint, get(i), color = factor(timepoint))) + stat_boxplot(fill = NA) + geom_jitter() + ylab(i) + labs(subtitle = bquote(.(i) ~ ' proportions by group'))
+
+        print(p1)
+        t = t + 1
+    })
+}
+```
+
+
+4 lines
+really cool function to loop through graphs!! YAY 
+```{r}
+cellTypes = colnames(props)
+cellTypesinterested = cellTypes[2:(length(cellTypes)-extraCols)]
+myplots <- vector('list', length(cellTypesinterested))
+t = 1
+for (i in cellTypesinterested) {
+    myplots[[t]] <- local({
+        i <- i
+        p1 <- ggplot(props, aes(timepoint, get(i), fill=timepoint)) + geom_point(aes(fill = timepoint))+ geom_line(aes(group=donor, color = donor)) + ylab(i) + labs(subtitle = bquote(.(i) ~ ' proportions by group'))
+        print(p1)
+        t = t + 1
+    })
+}
+
+```
+
+## WITH THE SEURAT NUMS
+
+1. turn nums count to proportions
+```{r}
+nums = read.csv("./output/preg_seuratNums.csv")
+View(nums)
+nums[-1] <- nums[-1] / rowSums(nums[-1]) # get proportions by the row
+inputcols = length(colnames(nums))
+```
+
+2. grab metadata
+```{r}
+metadata = read.csv("./metadata/samples_3.csv")
+props = merge(nums, metadata[c("orig.ident","donor", "timepoint")], by.x = "X", by.y = "orig.ident", all.X = TRUE, all.y = FALSE)
+levels(props$timepoint) = c("NP", "Pre", "T1", "T2", "T3", "Post")
+extraCols = length(colnames(props)) - inputcols
+```
+
+#single graph test work (IGNORE)
+```{r}
+colnames(props)
+ ggplot(props, aes(timepoint, X0, color = NA)) +
+  geom_line(aes(color = donor)) + 
+  geom_smooth(aes(color = donor)) + 
+    geom_jitter() +
+    stat_boxplot(fill = NA) +
+  labs(subtitle = "CD8_T proportions by group")
+
+```
+
+
+3. really cool function to loop through graphs!! YAY 
+```{r}
+cellTypes = colnames(props)
+cellTypesinterested = cellTypes[2:(length(cellTypes) - extraCols)]
+myplots <- vector('list', length(cellTypesinterested))
+t = 1
+for (i in cellTypesinterested) {
+    myplots[[t]] <- local({
+        i <- i
+        p1 <- ggplot(props, aes(timepoint, get(i), color = factor(timepoint))) + stat_boxplot(fill = NA) + geom_jitter() + ylab(i) + labs(subtitle = bquote(.(i) ~ ' proportions by group'))
+
+        print(p1)
+        t = t + 1
+    })
+}
+```
+
+
+
+
+4 lines
+really cool function to loop through graphs!! YAY 
+```{r}
+cellTypes = colnames(props)
+cellTypesinterested = cellTypes[2:(length(cellTypes)-extraCols)]
+myplots <- vector('list', length(cellTypesinterested))
+t = 1
+for (i in cellTypesinterested) {
+    myplots[[t]] <- local({
+        i <- i
+        p1 <- ggplot(props, aes(timepoint, get(i), fill=timepoint)) + geom_point(aes(fill = timepoint))+ geom_line(aes(group=donor, color = donor)) + ylab(i) + labs(subtitle = bquote(.(i) ~ ' proportions by group'))
+        print(p1)
+        t = t + 1
+    })
+}
+
+```
+
+
+5. put together in 1 pdf # doesn't work
+```{r}
+View(props)
+View(mtcars)
+ggplot(props, aes(timepoint,  fill=timepoint)) + geom_point(aes(fill = timepoint))+ geom_line(aes(group=donor, color = donor)) 
+mt
+mt + facet_grid(vars(timepoint))
+
+mt <- ggplot(props, aes(timepoint, colour = factor(timepoint))) +
+  geom_point()
+
+mt + facet_grid(vars(timepoint), scales = "free")
+
+```
+

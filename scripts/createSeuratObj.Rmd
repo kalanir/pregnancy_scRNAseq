@@ -1,0 +1,119 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+pre-0. installing software
+```{r}
+#install.packages("multtest")
+#BiocManager::install("multtest")
+#BiocManager::install("preprocessCore")
+#BiocManager::install("GEOquery")
+#BiocManager::install("GEOmetadb")
+#install.packages("MetaIntegrator")
+#BiocManager::install("scRNAseq")
+#BiocManager::install("SingleR")
+#BiocManager::install("celldex")
+```
+0. loading software
+```{r}
+setwd("/labs/khatrilab/kalanir/pregnancy/")
+library(Matrix)
+library(Matrix.utils)
+library(plyr)
+library(dplyr)
+library(Seurat)
+library(ggplot2)
+library(MetaIntegrator)
+library(scRNAseq)
+library(SingleR) 
+```
+
+1. immunstates matrix loading
+```{r}
+data("immunoStatesMatrix") 
+#View(immunoStatesMatrix)
+colnames(immunoStatesMatrix) = gsub("positive_","", colnames(immunoStatesMatrix))
+colnames(immunoStatesMatrix)=gsub("natural_killer","NK",colnames(immunoStatesMatrix))
+colnames(immunoStatesMatrix)=gsub("dendritic_cell","DC",colnames(immunoStatesMatrix))
+colnames(immunoStatesMatrix)=gsub("alpha_beta_","",colnames(immunoStatesMatrix))
+colnames(immunoStatesMatrix)=gsub("hematopoietic_progenitor","HPC",colnames(immunoStatesMatrix))
+colnames(immunoStatesMatrix)=gsub("macrophage_m","macrophage_M",colnames(immunoStatesMatrix))
+
+colnames(immunoStatesMatrix)=gsub("_cell$","",colnames(immunoStatesMatrix)) 
+
+immunoStates.se=SummarizedExperiment(assays=list(logcounts=immunoStatesMatrix),colData=DataFrame(label=colnames(immunoStatesMatrix)))
+```
+
+2. Load batch corrected single cell data
+```{r}
+preg_combined = readRDS("./output/pregnancy_batchCorrected.seu.rds")
+
+metadata = read.csv("./metadata/samples_3.csv")
+
+seurat_metadata <- preg_combined@meta.data
+seurat_metadata <- seurat_metadata[,!(colnames(seurat_metadata)) %in% 
+                                     setdiff(colnames(metadata), "orig.ident")]
+metadata_combined <- merge(seurat_metadata, metadata, by = "orig.ident")
+rownames(metadata_combined) <- rownames(preg_combined@meta.data)
+preg_combined@meta.data <- metadata_combined
+levels(preg_combined$timepoint) = c("None", "Pre", "One", "Two", "Three", "Post")
+
+```
+
+3.
+```{r}
+immunoStates.main = SingleR(test = preg_combined@assays$SCT@data, ref = immunoStates.se, labels = immunoStates.se$label)
+View(table(immunoStates.main$labels))
+saveRDS(immunoStates.main, "./output/pregnancy_batchCorrected_immunostates.rds")
+```
+
+4.
+```{r}
+plotScoreHeatmap(immunoStates.main, clusters = preg_combined@meta.data$orig.ident)
+plotScoreHeatmap(immunoStates.main, clusters = preg_combined@meta.data$seurat_clusters)
+
+```
+
+
+
+5.
+```{r}
+singler.results <- merge(data.frame(cell = rownames(immunoStates.main), singler = immunoStates.main$labels), 
+                         data.frame(cell = rownames(preg_combined@meta.data), 
+                                    cluster = preg_combined@meta.data$seurat_clusters), 
+                         by = "cell", 
+                         all.y = FALSE)
+singler.results$cell <- NULL
+singler.results$count <- 1
+singler.results <- aggregate(count ~ ., singler.results, FUN = sum)
+singler.final <- singler.results %>% group_by(cluster) %>% top_n(n = 1, wt = count)
+#View(singler.final)
+preg_combined$singler <- immunoStates.main$labels
+q = DimPlot(preg_combined, group.by = "singler", label = F) 
+q
+#ggsave(q, filename = "./figures/immunostatesSingleR.pdf", width = 15, height = 8)
+t = DimPlot(preg_combined, label = F) 
+t
+```
+
+```{r}
+p = DimPlot(preg_combined, group.by = "singler", reduction = "umap", split.by = "timepoint")
+#ggsave(p, filename = "./figures/timepoint_split.pdf", width = 15, height = 8)
+d = DimPlot(preg_combined, reduction = "umap", split.by = "timepoint")
+ggsave(d, filename = "./figures/timepoint_split_seuratCluster.pdf", width = 15, height = 8)
+```
+6. getting counts of each celltype
+```{r}
+View(table(preg_combined$orig.ident))
+x = (table(preg_combined$orig.ident, preg_combined$singler))
+write.csv(x, "./preg_nums.csv")
+```
+
+7. getting counts of each seurat object
+```{r}
+View(table(preg_combined$orig.ident))
+s = (table(preg_combined$orig.ident, preg_combined$seurat_clusters))
+View(s)
+write.csv(s, "./preg_seuratNums.csv")
+
+```

@@ -1,0 +1,16 @@
+orig.ident,batch,pregnancy,repeatSamples,timepoint,timepoint_3,donor,cellType_Processing
+NP2_01,2,No,No,None,No,NP2,Thaw_PBMC
+NP2_02,2,No,No,None,No,NP2,Thaw_PBMC
+NP3,2,No,Yes_2,None,No,NP3,Thaw_PBMC
+P04_01,2,Yes,No,Pre,No,P04,Thaw_PBMC
+P04_02,2,Yes,No,One,No,P04,Thaw_PBMC
+P04_03,2,Yes,No,Two,No,P04,Thaw_PBMC
+P04_04,2,Yes,No,Three,Yes,P04,Thaw_PBMC
+P04_05,2,Yes,No,Post,No,P04,Thaw_PBMC
+pbmc_NP1,1,No,Yes_1,None,No,NP3,PBMC_Live
+pbmc_NP2,1,No,Yes_1,None,No,NP3,PBMC_Live
+pbmc_P1,1,Yes,No,Pre,No,P05,PBMC_Live
+pbmc_P2,1,Yes,No,One,No,P05,PBMC_Live
+pbmc_P3,1,Yes,No,Two,No,P05,PBMC_Live
+pbmc_P4,1,Yes,No,Three,Yes,P05,PBMC_Live
+pbmc_P5,1,Yes,No,Post,No,P05,PBMC_Live
