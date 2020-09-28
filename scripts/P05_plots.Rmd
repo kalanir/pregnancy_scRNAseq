@@ -1,0 +1,125 @@
+Load data
+
+```{r load data}
+path = "~/code/blish_pregnancy/data/P05/"
+cm.list = paste0(path, list.files(pattern = "*.matrices.rds", path = path))
+cm.files <- lapply(cm.list, readRDS)
+names(cm.files) <- sub("\\_cell.counts.matrices.rds", "", list.files(pattern = "*.matrices.rds", path = path))
+```
+
+pre-processing
+
+```{r pre-process}
+cm.pp <- mapply(EpicPreHS, cm.files, orig.ident = names(cm.files), SIMPLIFY = F)
+```
+
+Merge
+```{r merge}
+preg_combined.emat <- mergeCM(cm.pp, type = "emat")
+preg_combined.nmat <- mergeCM(cm.pp, type = "nmat")
+dim(preg_combined.emat)
+#saveRDS(preg_combined.emat, "~/code/blish_pregnancy/output/preg_combined.emat.rds")
+```
+
+
+##Make Seurat object
+```{r}
+preg_combined5 <- CreateSeuratObject(counts = preg_combined.emat, min.cells = 10, names.field = 1, names.delim = "\\.")
+preg_combined5 <- PercentageFeatureSet(preg_combined5, pattern = "^MT-", col.name = "percent.mt")
+preg_combined5 <- PercentageFeatureSet(preg_combined5, pattern = "^RPS", col.name = "percent.rps")
+preg_combined5 <- PercentageFeatureSet(preg_combined5, pattern = "^RPL", col.name = "percent.rpl")
+preg_combined5 <- PercentageFeatureSet(preg_combined5, pattern = "^RNA\\d8S5", col.name = "percent.rrna")
+preg_combined5 <- SCTransform(preg_combined5, vars.to.regress = c("percent.mt", "percent.rps", "percent.rpl", "percent.rrna", "nCount_RNA", "nFeature_RNA"), verbose = FALSE, return.only.var.genes = TRUE)
+
+
+preg_combined5 <- RunPCA(preg_combined5, verbose = FALSE)
+preg_combined5 <- RunUMAP(preg_combined5, dims = 1:50, verbose = FALSE)
+preg_combined5 <- FindNeighbors(preg_combined5, dims = 1:50, verbose = FALSE)
+preg_combined5 <- FindClusters(preg_combined5, resolution = 1, verbose = FALSE)
+saveRDS(preg_combined5, "~/code/blish_pregnancy/output/preg_combined_05.rds")
+#preg_combined5 = readRDA("~/code/blish_pregnancy/output/preg_combined_05.rds")
+
+q0 = DimPlot(preg_combined5, label = TRUE) + NoLegend()
+plot_grid(p0, q0)
+```
+
+```{r}
+Idents(preg_combined5) <- factor(Idents(preg_combined5), levels = c("CD4 Naive T", "CD8 T", "Monocytes (MDSC?)", "CD4 T", "4", "5","CD4? T cells","7","B","NK", "FCGR3A+ Mono", "CD4 Naive? T", "Monocytes", "CD4","NK2", "DC", "CD8","Platelets","macrophages?"))
+                                   
+ new.cluster.ids <- c("CD4 Naive T", "CD8 T", "Monocytes (MDSC?)", "CD4 T", "4 - dead?", "T cells","CD4? T cells","7 - dead?","B","NK", "FCGR3A+ Mono", "CD4 Naive? T", "CD14 Monocytes", "CD4","NK2", "DC", "CD8","Platelets","macrophages?")
+names(new.cluster.ids) <- levels(workingobject5)
+workingobject5 <- RenameIdents(workingobject5, new.cluster.ids)
+DimPlot(workingobject5, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()                               
+
+       
+```
+
+
+```{r mapping batch}
+#https://satijalab.org/seurat/v3.0/interaction_vignette.html
+workingobject5 = preg_combined5
+metadata = read.csv("~/code/blish_pregnancy/analysis/metadata.csv")
+batchData = read.csv("~/code/blish_pregnancy/metadata/samples_2.csv")
+mergedData5 = workingobject5$orig.ident
+mergedData5 = merge(mergedData5, batchData, by.y = c("x"))
+#View(mergedData)
+dim(mergedData5) #48192
+unique(workingobject5$orig.ident)
+workingobject5$timepoint = mergedData5$timepoint #todo #done here
+#View(workingobject$batch)
+
+q1 <- DimPlot(workingobject5, reduction = "umap", group.by = "timepoint")
+q1$layers[[1]]$aes_params$alpha = .2 #manually sets alpha to 0.3
+q1 = q1 + guides(colour = guide_legend(override.aes = list(alpha = 1,size=4))) # forces the legend to be alpha = 1
+plot_grid(p1, q1)
+
+
+
+
+```
+
+
+
+```{r changing alpha}
+
+FeaturePlot(workingobject5, features = c("CD14"))
+FeaturePlot(workingobject5, features = c("MS4A1", "GNLY", "CD3E", "CD14", "FCER1A", "FCGR3A", "LYZ", "CD16", 
+    "CD8A"))
+```
+
+```{r}
+levels(workingobject5$timepoint) = c("None","Pre", "One", "Two", "Three", "Post" )
+DimPlot(workingobject5, reduction = "umap", split.by = "timepoint")
+
+
+```
+
+```{r}
+cluster0.markers <- FindMarkers(workingobject5, ident.1 = 0, min.pct = 0.25)
+cluster1.markers <- FindMarkers(workingobject5, ident.1 = 1, min.pct = 0.25)
+cluster5.markers <- FindMarkers(workingobject5, ident.1 = 5, min.pct = 0.25)
+cluster6.markers <- FindMarkers(workingobject5, ident.1 = 6, min.pct = 0.25)
+cluster7.markers <- FindMarkers(workingobject5, ident.1 = 7, min.pct = 0.25)
+cluster8.markers <- FindMarkers(workingobject5, ident.1 = 8, min.pct = 0.25)
+cluster9.markers <- FindMarkers(workingobject5, ident.1 = 9, min.pct = 0.25)
+cluster10.markers <- FindMarkers(workingobject5, ident.1 = 10, min.pct = 0.25)
+cluster11.markers <- FindMarkers(workingobject5, ident.1 = 11, min.pct = 0.25)
+cluster12.markers <- FindMarkers(workingobject5, ident.1 = 12, min.pct = 0.25)
+cluster13.markers <- FindMarkers(workingobject5, ident.1 = 13, min.pct = 0.25)
+cluster14.markers <- FindMarkers(workingobject5, ident.1 = 14, min.pct = 0.25)
+cluster15.markers <- FindMarkers(workingobject5, ident.1 = 15, min.pct = 0.25)
+cluster16.markers <- FindMarkers(workingobject5, ident.1 = 16, min.pct = 0.25)
+cluster17.markers <- FindMarkers(workingobject5, ident.1 = 17, min.pct = 0.25)
+cluster18.markers <- FindMarkers(workingobject5, ident.1 = 18, min.pct = 0.25)
+
+head(cluster5.markers, n = 20)
+```
+
+
+```{r}
+workingobject5.markers <- FindAllMarkers(workingobject5, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+workingobject5.markers %>% group_by(cluster) %>% top_n(n = 2, wt = avg_logFC)
+
+
+
+```

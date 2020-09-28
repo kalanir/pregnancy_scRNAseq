@@ -1,0 +1,213 @@
+```{r libraries}
+setwd("~/code/blish_pregnancy/")
+install.packages("dplyr")
+source("~/code/blish_pregnancy/analysis/additionalFunctions.R")
+library(Matrix)
+library(Matrix.utils)
+library(plyr)
+library(dplyr)
+library(Seurat)
+library(sctransform)
+library(igraph)
+library(factoextra)
+library(EpicTools) #?
+library(ComplexHeatmap) #?
+library(circlize)
+#require(WGCNA)
+#require(flashClust)
+require(Hmisc)
+require(dplyr)
+require(openxlsx)
+require(ggplot2)
+library(ggpubr)
+require(cowplot)
+library(data.table)
+library(topGO) #?
+library(RColorBrewer)
+library(ALL) #?
+#library(rowr) #?
+#library(SingleR) #?
+library(scater) #?
+library(pheatmap)
+library(nichenetr) #?
+library(tidyverse)
+data(ALL)
+data(geneList)
+```
+
+```{r}
+temp = readRDS("~/code/blish_pregnancy/data/repeat_subset/NP3_cell.counts.matrices.rds")
+View(temp)
+
+```
+
+
+Load data
+
+```{r load data}
+path = "~/code/blish_pregnancy/data/repeat_subset/"
+cm.list = paste0(path, list.files(pattern = "*.matrices.rds", path = path))
+cm.files <- lapply(cm.list, readRDS)
+names(cm.files) <- sub("\\_cell.counts.matrices.rds", "", list.files(pattern = "*.matrices.rds", path = path))
+```
+
+pre-processing
+
+```{r pre-process}
+cm.pp <- mapply(EpicPreHS, cm.files, orig.ident = names(cm.files), SIMPLIFY = F)
+```
+
+Merge
+```{r merge}
+preg_combined.emat <- mergeCM(cm.pp, type = "emat")
+preg_combined.nmat <- mergeCM(cm.pp, type = "nmat")
+dim(preg_combined.emat)
+#saveRDS(preg_combined.emat, "~/code/blish_pregnancy/output/preg_combined.emat.rds")
+```
+
+
+##Make Seurat object
+```{r}
+preg_combined <- CreateSeuratObject(counts = preg_combined.emat, min.cells = 10, names.field = 1, names.delim = "\\.")
+preg_combined <- PercentageFeatureSet(preg_combined, pattern = "^MT-", col.name = "percent.mt")
+preg_combined <- PercentageFeatureSet(preg_combined, pattern = "^RPS", col.name = "percent.rps")
+preg_combined <- PercentageFeatureSet(preg_combined, pattern = "^RPL", col.name = "percent.rpl")
+preg_combined <- PercentageFeatureSet(preg_combined, pattern = "^RNA\\d8S5", col.name = "percent.rrna")
+preg_combined <- SCTransform(preg_combined, vars.to.regress = c("percent.mt", "percent.rps", "percent.rpl", "percent.rrna", "nCount_RNA", "nFeature_RNA"), verbose = FALSE, return.only.var.genes = TRUE)
+
+
+#saveRDS(preg_combined, file = "~/code/blish_pregnancy/analysis/200506.preg_combined_NP3subset.seu.rds")
+```
+
+```{r start here}
+preg_combined <- readRDS("~/code/blish_pregnancy/analysis/200506.preg_combined_NP3subset.seu.rds") #ran on server # CAN START HERE!
+
+preg_combined <- RunPCA(preg_combined, verbose = FALSE)
+preg_combined <- RunUMAP(preg_combined, dims = 1:50, verbose = FALSE)
+preg_combined <- FindNeighbors(preg_combined, dims = 1:50, verbose = FALSE)
+preg_combined <- FindClusters(preg_combined, resolution = 1, verbose = FALSE)
+DimPlot(preg_combined, label = TRUE) + NoLegend()
+```
+
+
+
+
+```{r mapping batch}
+#https://satijalab.org/seurat/v3.0/interaction_vignette.html
+workingobject = preg_combined
+metadata = read.csv("~/code/blish_pregnancy/analysis/metadata.csv")
+batchData = read.csv("~/code/blish_pregnancy/metadata/samples_2.csv")
+mergedData = workingobject$orig.ident
+mergedData = merge(mergedData, batchData, by.y = c("x"))
+#View(mergedData)
+dim(mergedData) #48192
+unique(workingobject$orig.ident)
+workingobject$batch = mergedData$batch #todo #done here
+#View(workingobject$batch)
+
+Idents(workingobject) <- "batch"
+DimPlot(workingobject, reduction = "umap") 
+
+#get num. of each batch
+length(workingobject$batch[workingobject$batch == 1]) #18817
+length(workingobject$batch[workingobject$batch == 2]) #29375
+
+#View(workingobject$orig.ident)
+uniqueSamples = unique(workingobject$orig.ident)
+write.csv(uniqueSamples, "~/code/blish_pregnancy/metadata/samples_1.csv", row.names = FALSE)
+#View(workingobject$orig.ident)
+
+```
+
+```{r changing alpha}
+p <- DimPlot(workingobject, reduction = "umap")#the DimPlot call
+p$layers[[1]]$aes_params$alpha = .2 #manually sets alpha to 0.3
+p + guides(colour = guide_legend(override.aes = list(alpha = 1,size=4))) # forces the legend to be alpha = 1
+
+```
+```{r}
+#top 5 markers of cluster 1
+cluster1.markers <- FindMarkers(preg_combined, ident.1 = 1, min.pct = 0.25)
+head(cluster1.markers, n = 10)
+
+cluster1.markers <- FindMarkers(preg_combined, ident.1 = 1, ident.2 = c(2), min.pct = 0.25)
+ribo = c(grep("^RPL", rownames(cluster1.markers), value = T),grep("^RPS", rownames(cluster1.markers), value = T))
+mito = c(grep("^MT-", rownames(cluster1.markers), value = T), grep("^MTR", rownames(cluster1.markers), value = T))
+
+rpl = cluster1.markers[rownames(cluster1.markers) %like% "^RPL", ]
+rps = cluster1.markers[rownames(cluster1.markers) %like% "^RPS", ]
+mtr = cluster1.markers[rownames(cluster1.markers) %like% "^MT-", ]
+combinedRM = rbind(rpl, rps, mtr)
+View(combinedRM)
+View(mtr)
+length(ribo) #31
+length(mito) #7
+length(rownames(cluster1.markers)) #81
+view(ribo)
+(31+7)/81
+head(cluster1.markers, n = 10)
+cluster2.markers <- FindMarkers(preg_combined, ident.1 = 2, ident.2 = c(1), min.pct = 0.25)
+head(cluster1.markers, n = 10)
+```
+
+```{r}
+VlnPlot(preg_combined, features = c("S100A12", "RPL35A"))
+
+```
+
+
+
+```{r}
+
+
+preg_combined.markers <- FindAllMarkers(preg_combined, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+preg_combined.markers %>% group_by(cluster) %>% top_n(n = 2, wt = avg_logFC)
+```
+
+
+
+
+```{r}
+FeaturePlot(preg_combined, features = c("MS4A1", "GNLY", "CD3E", "CD14", "FCER1A", "FCGR3A", "LYZ", "PPBP", "CD8A"))
+
+```
+
+
+
+```{r}
+top10 <- preg_combined.markers %>% group_by(cluster) %>% top_n(n = 8, wt = avg_logFC)
+DoHeatmap(preg_combined, features = top10$gene) + NoLegend()
+View(heatmap1)
+
+DoHeatmap(object = preg_combined, features = top10$gene) + theme(axis.text.y = element_text(size = 5), axis.text.x = element_text(size = 5))
+
+DoHeatmap(object = preg_combined, features = top10$gene, size = 3) + theme(axis.text.y = element_text(size = 5))
+
+```
+
+
+```{r ridgeplot}
+features = c("MS4A1", "GNLY", "CD3E", "CD14", "FCER1A", "FCGR3A", "LYZ", "PPBP", "CD8A")
+features1 = c("CD14", "LYZ")
+
+RidgePlot(preg_combined, features = features1)
+
+```
+
+#https://satijalab.org/seurat/v2.4/pbmc3k_tutorial.html
+```{r}
+
+
+
+```
+
+```{r tryingBatchCorrection}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("sva")
+
+library("sva")
+
+
+```
