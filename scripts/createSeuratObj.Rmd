@@ -16,7 +16,6 @@ pre-0. installing software
 ```
 0. loading software
 ```{r}
-setwd("/labs/khatrilab/kalanir/pregnancy/")
 library(Matrix)
 library(Matrix.utils)
 library(plyr)
